@@ -1,0 +1,12 @@
+.idea/
+.vscode/
+*.iml
+.env
+!.env.example
+**/target/
+**/.dart_tool/
+**/build/
+**/coverage/
+frontend/.flutter-plugins-dependencies
+frontend/android/local.properties
+*.log

@@ -1,0 +1,7 @@
+.git
+.env
+**/target
+**/.dart_tool
+**/build
+**/coverage
+**/*.log

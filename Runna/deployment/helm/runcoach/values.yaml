@@ -1,0 +1,20 @@
+replicaCount: 2
+image:
+  repository: runcoach/backend
+  tag: '0.1.0'
+  pullPolicy: IfNotPresent
+existingSecret: runcoach-secrets
+config:
+  DB_URL: jdbc:postgresql://postgres.example.internal:5432/runcoach
+  DB_USERNAME: runcoach
+  CACHE_ENABLED: 'false'
+  REDIS_URL: redis://redis.example.internal:6379
+  JWT_ISSUER: https://identity.example.com/realms/runcoach
+  JWT_PUBLIC_KEY_LOCATION: https://identity.example.com/realms/runcoach/protocol/openid-connect/certs
+resources:
+  requests:
+    cpu: 250m
+    memory: 384Mi
+  limits:
+    cpu: '1'
+    memory: 768Mi

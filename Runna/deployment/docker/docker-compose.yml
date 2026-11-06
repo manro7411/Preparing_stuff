@@ -1,0 +1,84 @@
+name: runcoach
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-runcoach}
+      POSTGRES_USER: ${POSTGRES_USER:-runcoach}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+    ports:
+      - '127.0.0.1:5432:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+  redis:
+    image: redis:7.4-alpine
+    profiles: ['cache']
+    ports:
+      - '127.0.0.1:6379:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+  backend:
+    image: runcoach/backend:0.1.0
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-runcoach}
+      DB_USERNAME: ${POSTGRES_USER:-runcoach}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      CACHE_ENABLED: ${CACHE_ENABLED:-false}
+      REDIS_URL: redis://redis:6379
+      JWT_ISSUER: ${JWT_ISSUER:?Set JWT_ISSUER in .env}
+      JWT_PUBLIC_KEY_LOCATION: ${JWT_PUBLIC_KEY_LOCATION:?Set JWT_PUBLIC_KEY_LOCATION in .env}
+      BILLING_POLICY: ${BILLING_POLICY:-UNCONFIGURED}
+      RUNCOACH_BILLING_PRICES_PRO_MONTHLY_USD: ${RUNCOACH_BILLING_PRICES_PRO_MONTHLY_USD:-0}
+      RUNCOACH_BILLING_PRICES_PRO_YEARLY_USD: ${RUNCOACH_BILLING_PRICES_PRO_YEARLY_USD:-0}
+      RUNCOACH_BILLING_PRICES_ELITE_MONTHLY_USD: ${RUNCOACH_BILLING_PRICES_ELITE_MONTHLY_USD:-0}
+      RUNCOACH_BILLING_PRICES_ELITE_YEARLY_USD: ${RUNCOACH_BILLING_PRICES_ELITE_YEARLY_USD:-0}
+      RUNCOACH_BILLING_PRICES_PRO_MONTHLY_THB: ${RUNCOACH_BILLING_PRICES_PRO_MONTHLY_THB:-0}
+      RUNCOACH_BILLING_PRICES_PRO_YEARLY_THB: ${RUNCOACH_BILLING_PRICES_PRO_YEARLY_THB:-0}
+      RUNCOACH_BILLING_PRICES_ELITE_MONTHLY_THB: ${RUNCOACH_BILLING_PRICES_ELITE_MONTHLY_THB:-0}
+      RUNCOACH_BILLING_PRICES_ELITE_YEARLY_THB: ${RUNCOACH_BILLING_PRICES_ELITE_YEARLY_THB:-0}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:8080:8080'
+    restart: unless-stopped
+  web:
+    image: runcoach/web:0.1.0
+    profiles: ['web']
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.flutter
+    depends_on:
+      - backend
+    ports:
+      - '127.0.0.1:3000:8080'
+    restart: unless-stopped
+  migrate:
+    image: flyway/flyway:11.13.2
+    profiles: ['tools']
+    environment:
+      FLYWAY_URL: jdbc:postgresql://postgres:5432/${POSTGRES_DB:-runcoach}
+      FLYWAY_USER: ${POSTGRES_USER:-runcoach}
+      FLYWAY_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      FLYWAY_CONNECT_RETRIES: 10
+    volumes:
+      - ../../backend/src/main/resources/db/migration:/flyway/sql:ro
+    command: migrate
+    depends_on:
+      postgres:
+        condition: service_healthy
+volumes:
+  postgres-data:

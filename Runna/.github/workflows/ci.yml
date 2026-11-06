@@ -1,0 +1,62 @@
+name: Scaffold checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - run: mvn -f backend/pom.xml -B -ntp verify
+      - run: for script in scripts/*.sh; do bash -n "$script"; done
+  billing-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_DB: runcoach_test
+          POSTGRES_USER: runcoach
+          POSTGRES_PASSWORD: runcoach-test-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U runcoach -d runcoach_test"
+          --health-interval 5s --health-timeout 3s --health-retries 20
+    env:
+      RUNCOACH_TEST_DB_URL: jdbc:postgresql://localhost:5432/runcoach_test
+      RUNCOACH_TEST_DB_USER: runcoach
+      RUNCOACH_TEST_DB_PASSWORD: runcoach-test-only
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: backend/pom.xml
+      - run: mvn -f backend/pom.xml -B -ntp -Ppostgres-it verify
+  flutter:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.7'
+          channel: stable
+          cache: true
+      - working-directory: frontend
+        run: |
+          flutter pub get
+          dart run build_runner build --delete-conflicting-outputs
+          flutter analyze
+          flutter test
+          flutter build web --release --dart-define=API_BASE_URL=/
